@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Activation Key Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 900px;
+      margin: auto;
+      background: #f9f9f9;
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    input[type="number"] {
+      width: 120px;
+      padding: 8px;
+      font-size: 1rem;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      font-size: 1rem;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.3s ease;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 12px 15px;
+      border: 1px solid #ddd;
+      text-align: center;
+      word-break: break-word;
+    }
+    th {
+      background-color: #007bff;
+      color: white;
+    }
+    .expired {
+      background-color: #ffe0e0;
+    }
+    .btn-copy {
+      background: #28a745;
+      margin-left: 5px;
+      font-size: 0.9rem;
+      padding: 6px 10px;
+      border-radius: 4px;
+    }
+    .btn-copy:hover {
+      background: #1e7e34;
+    }
+    .btn-toggle {
+      background: #ffc107;
+      color: #212529;
+      border-radius: 4px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .btn-toggle.used {
+      background: #dc3545;
+      color: white;
+    }
+    @media (max-width: 600px) {
+      th, td {
+        font-size: 0.9rem;
+        padding: 8px 6px;
+      }
+      form {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      input[type="number"] {
+        width: 100%;
+      }
+      button {
+        width: 100%;
+      }
+      .btn-copy, .btn-toggle {
+        padding: 8px;
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h2>🔑 Activation Key Manager</h2>
+
+  <form method="POST" action="/keys" onsubmit="return validateForm()">
+    <input type="number" name="days" placeholder="Valid days" required min="1" />
+    <button type="submit">➕ Generate New Key</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Key</th>
+        <th>Expires At</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% keys.forEach(k => { %>
+      <tr class="<%= new Date(k.expires_at) < new Date() ? 'expired' : '' %>">
+        <td>
+          <span class="key-text"><%= k.key %></span>
+          <button class="btn-copy" onclick="copyToClipboard('<%= k.key %>', this)">Copy</button>
+        </td>
+        <td><%= new Date(k.expires_at).toLocaleString() %></td>
+        <td>
+          <form method="POST" action="/keys/toggle/<%= k._id %>">
+            <button type="submit" class="btn-toggle <%= k.used ? 'used' : '' %>">
+              <%= k.used ? 'Used' : 'Unused' %>
+            </button>
+          </form>
+        </td>
+        <td>
+          <form method="POST" action="/keys/delete/<%= k._id %>" onsubmit="return confirm('Delete this key?')">
+            <button type="submit">🗑️ Delete</button>
+          </form>
+        </td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
+
+  <script>
+    function copyToClipboard(text, btn) {
+  if (navigator.clipboard && window.isSecureContext) {
+    // আধুনিক ব্রাউজার এবং HTTPS
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    }).catch(() => fallbackCopyText(text, btn));
+  } else {
+    // fallback for older browsers or insecure context
+    fallbackCopyText(text, btn);
+  }
+}
+
+function fallbackCopyText(text, btn) {
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  
+  // পেজের বাইরে রাখছি যাতে দেখা না যায়
+  textArea.style.position = "fixed";
+  textArea.style.left = "-9999px";
+  
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+
+  try {
+    const successful = document.execCommand('copy');
+    if (successful) {
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    } else {
+      alert('Copy failed! Please copy manually.');
+    }
+  } catch (err) {
+    alert('Copy failed! Please copy manually.');
+  }
+
+  document.body.removeChild(textArea);
+}
+
+
+    function validateForm() {
+      const daysInput = document.querySelector('input[name="days"]');
+      if (!daysInput.value || isNaN(daysInput.value) || daysInput.value < 1) {
+        alert('Please enter a valid number of days (1 or more).');
+        return false;
+      }
+      return true;
+    }
+  </script>
+</body>
+</html>

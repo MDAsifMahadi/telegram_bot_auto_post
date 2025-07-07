@@ -1,0 +1,23 @@
+{
+  "name": "new_telegram_bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "bot.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^17.0.1",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "mongoose": "^8.16.1",
+    "nanoid": "^5.1.5",
+    "node-cron": "^4.2.0",
+    "node-telegram-bot-api": "^0.66.0",
+    "telegram": "^2.26.22"
+  }
+}

@@ -49,13 +49,17 @@ app.post('/keys', async (req, res) => {
 // Delete key
 app.post('/keys/delete/:id', async (req, res) => {
 try {
-  const activation_key = await Key.findById(req.params.id).then(key => key.key);
+  const activation_key = await Key.findById(req.params.id);
+  console.log(activation_key)
   if (!activation_key) {  
     return res.redirect('/keys');
   }
+  const user = await User.findOne({ activation_key: activation_key.key });
+  if (user) {
+    await User.findByIdAndDelete(user._id);
+  }
   await Key.findByIdAndDelete(req.params.id);
-  await User.findOneAndDelete({ key: activation_key });
-  res.redirect('/keys');
+
 } catch (error) {
   console.error('❌ Error deleting key:', error.message);
   res.status(500).send('Internal Server Error');

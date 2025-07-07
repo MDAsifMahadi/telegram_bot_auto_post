@@ -11,7 +11,9 @@ export async function startPolling(bot) {
 
   setInterval(async () => {
     const users = await User.find({ status: 'active' });
-
+    if (!users || users.length === 0) {
+      return;
+    }
     for (const user of users) {
       const { source_channels = [], destination_channel, _id } = user;
 

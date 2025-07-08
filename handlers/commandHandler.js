@@ -4,7 +4,7 @@ import { Key } from '../models/key.js';
 const userState = {};
 
 export function setupCommandHandlers(bot) {
-  bot.onText(/\/start/, async (msg) => {
+  bot.onText(/\/start|\/new/, async (msg) => {
     const chatId = msg.chat.id;
     userState[chatId] = { step: 'awaiting_key' };
 
@@ -18,7 +18,7 @@ export function setupCommandHandlers(bot) {
     const chatId = msg.chat.id;
     const text = msg.text?.trim();
 
-    if (!userState[chatId] || msg.text.startsWith('/')) return;
+    if (!userState[chatId] || text.startsWith('/')) return;
 
     const step = userState[chatId].step;
 
@@ -27,10 +27,7 @@ export function setupCommandHandlers(bot) {
       const keyDoc = await Key.findOne({ key: text, used: false });
 
       if (!keyDoc) {
-        return bot.sendMessage(
-          chatId,
-          `❌ অবৈধ এক্টিভেশন কী। আবার চেষ্টা করুন বা @YourTelegramID এর সাথে যোগাযোগ করুন।`
-        );
+        return bot.sendMessage(chatId, `❌ অবৈধ এক্টিভেশন কী। আবার দিন বা @Asif_Mahadi0 এর সাথে যোগাযোগ করুন।`);
       }
 
       userState[chatId] = {
@@ -38,62 +35,79 @@ export function setupCommandHandlers(bot) {
         activation_key: text,
       };
 
-      return bot.sendMessage(chatId, `✅ এক্টিভেশন কী গ্রহণ করা হয়েছে!\n\n🔗 এখন সোর্স চ্যানেলের @username দিন (একাধিক হলে কমা দিয়ে দিন):`);
+      return bot.sendMessage(chatId, `✅ কী গ্রহণ করা হয়েছে!\n\n📥 সোর্স চ্যানেলের @username দিন (কমা দিয়ে):`);
     }
 
-    // Step 2: সোর্স চ্যানেল ইনপুট
+    // Step 2: সোর্স ইনপুট
     if (step === 'awaiting_source') {
-      const rawSources = text
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean);
+      const sources = text.split(',').map(s => s.trim()).filter(Boolean);
+      const invalid = sources.filter(s => !s.startsWith('@'));
 
-      // Check all sources start with '@'
-      const invalidSources = rawSources.filter(s => !s.startsWith('@'));
-      if (rawSources.length === 0) {
+      if (sources.length === 0) {
         return bot.sendMessage(chatId, '⚠️ সোর্স চ্যানেল দিতে ভুল হয়েছে। আবার দিন:');
-      } else if (invalidSources.length > 0) {
-        return bot.sendMessage(chatId, `❌ সোর্স চ্যানেলের ইউজারনেম অবশ্যই '@' দিয়ে শুরু করতে হবে। ভুল আছে: ${invalidSources.join(', ')}`);
+      } else if (invalid.length > 0) {
+        return bot.sendMessage(chatId, `❌ সোর্স ইউজারনেম অবশ্যই '@' দিয়ে শুরু করতে হবে। ভুল: ${invalid.join(', ')}`);
       }
 
-      userState[chatId].sources = rawSources;
+      userState[chatId].sources = sources;
       userState[chatId].step = 'awaiting_destination';
 
-      return bot.sendMessage(chatId, `📤 এখন ডেস্টিনেশন চ্যানেলের @username দিন (যেখানে পোস্ট যাবে):`);
+      return bot.sendMessage(chatId, `📤 এখন ডেস্টিনেশন চ্যানেলের @username দিন:`);
     }
 
-    // Step 3: ডেস্টিনেশন চ্যানেল ইনপুট ও সেভ
+    // Step 3: ডেস্টিনেশন ইনপুট ও সেভ
     if (step === 'awaiting_destination') {
-      const activation_key = userState[chatId].activation_key;
-      const sources = userState[chatId].sources;
       const destination = text.trim();
-
-      // Destination অবশ্যই '@' দিয়ে শুরু করতে হবে
       if (!destination.startsWith('@')) {
-        return bot.sendMessage(chatId, '❌ ডেস্টিনেশন চ্যানেলের ইউজারনেম অবশ্যই @ দিয়ে শুরু করতে হবে। আবার দিন:');
+        return bot.sendMessage(chatId, '❌ ডেস্টিনেশন অবশ্যই @ দিয়ে শুরু করতে হবে। আবার দিন:');
       }
 
+      const { activation_key, sources } = userState[chatId];
       const keyDoc = await Key.findOneAndUpdate({ key: activation_key }, { used: true });
-      const expires = keyDoc.expires_at;
 
-      await User.create({
-        telegram_id: chatId,
+      if (!keyDoc) {
+        return bot.sendMessage(chatId, '❌ সমস্যাঃ কী পাওয়া যায়নি বা ইতিমধ্যেই ব্যবহৃত হয়েছে।');
+      }
+
+      const newSub = {
         activation_key,
-        source_channels: sources,
-        destination_channel: destination,
-        expires_at: expires,
-        status: 'active',
-      });
+        sources,
+        destination,
+        expires_at: keyDoc.expires_at,
+        status: 'active'
+      };
+
+      let user = await User.findOne({ telegram_id: chatId });
+
+      if (user) {
+        user.subscription.push(newSub);
+        await user.save();
+      } else {
+        await User.create({
+          telegram_id: chatId,
+          subscription: [newSub]
+        });
+      }
 
       userState[chatId] = null;
 
       return bot.sendMessage(
         chatId,
-        `🎉 সেটআপ সম্পন্ন!\n\n📥 Sources: ${sources.join(', ')}\n📤 Destination: ${destination}\n\n🕒 মেয়াদ শেষ হবে: ${expires.toDateString()}\n\n✅ এখন আমাকে ডেস্টিনেশন চ্যানেলের অ্যাডমিন করুন।`
+        `🎉 সাবস্ক্রিপশন যুক্ত হয়েছে!\n\n📥 Sources: ${sources.join(', ')}\n📤 Destination: ${destination}\n🕒 মেয়াদ: ${new Date(keyDoc.expires_at).toDateString()}\n\n✅ এখন আমাকে ডেস্টিনেশন চ্যানেলের অ্যাডমিন করুন।`
       );
     }
-
   });
+  bot.onText(/\/cancel/, async (msg) => {
+    const chatId = msg.chat.id;
+
+    if (userState[chatId]) {
+      userState[chatId] = null;
+      return bot.sendMessage(chatId, '❌ চলমান অপারেশন বাতিল করা হয়েছে। আপনি এখন নতুন করে শুরু করতে পারেন।');
+    } else {
+      return bot.sendMessage(chatId, 'ℹ️ বর্তমানে কোনো অপারেশন চলছে না।');
+    }
+  });
+
 }
 
 export async function handleCommand(bot, msg) {
@@ -101,22 +115,20 @@ export async function handleCommand(bot, msg) {
   const text = msg.text.trim();
 
   if (text === '/status') {
-    const users = await User.find({ telegram_id: chatId });
+    const user = await User.findOne({ telegram_id: chatId });
 
-    if (!users || users.length === 0) {
+    if (!user || !user.subscription.length) {
       return bot.sendMessage(chatId, '⚠️ কোনো সাবস্ক্রিপশন পাওয়া যায়নি।');
     }
 
     let reply = '📄 আপনার সাবস্ক্রিপশনসমূহ:\n\n';
 
-    for (const user of users) {
-      const key = await Key.findOne({ key: user.activation_key }); // <-- key এর পরিবর্তে activation_key
-
-      reply += `🔹 Sources: ${user.source_channels?.join(', ') || 'N/A'}\n`;
-      reply += `🔸 Destination: ${user.destination_channel || 'N/A'}\n`;
-      reply += `📦 Status: ${user.status === 'active' ? '✅ Active' : '❌ Inactive'}\n`;
-      reply += `🗓️ Expiry: ${key?.expires_at ? new Date(key.expires_at).toLocaleDateString() : 'Unknown'}\n`;
-      reply += `🆔 Key: ${user.activation_key}\n`;
+    for (const sub of user.subscription) {
+      reply += `🔹 Sources: ${sub.sources?.join(', ') || 'N/A'}\n`;
+      reply += `🔸 Destination: ${sub.destination || 'N/A'}\n`;
+      reply += `📦 Status: ${sub.status === 'active' ? '✅ Active' : '❌ Inactive'}\n`;
+      reply += `🗓️ Expiry: ${sub.expires_at ? new Date(sub.expires_at).toLocaleDateString() : 'Unknown'}\n`;
+      reply += `🆔 Key: ${sub.activation_key}\n`;
       reply += '----------------------\n';
     }
 

@@ -5,7 +5,6 @@ import { startClient } from './client.js';
 import { handleCommand } from './handlers/commandHandler.js';
 
 import { setupCommandHandlers } from './handlers/commandHandler.js';
-//import { setupMessageHandler } from './handlers/messageHandler.js';
 import { startPolling } from './handlers/pollingHandler.js';
 
 import { startExpiryChecker } from './utils/expiryChecker.js';
@@ -35,7 +34,6 @@ async function init() {
   await connectMongo();
   await startClient(); // GramJS client start
   setupCommandHandlers(bot);   // /start কমান্ড হ্যান্ডলার
-  //await setupMessageHandler(bot); // GramJS message listener
   await startPolling(bot);          // এটি অ্যাকটিভ করুন
   startExpiryChecker(bot);
   setupSubscriptionCommands(bot); // সাবস্ক্রিপশন কমান্ড হ্যান্ডলার

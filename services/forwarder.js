@@ -5,13 +5,18 @@ import { User } from '../models/user.js';
 
 // একক মেসেজ ফরওয়ার্ড
 export async function forwardSingleMessage(bot, message, destination) {
+  // destination হচ্ছে string, যেমন '@channelusername'
   const isAdmin = await isBotAdmin(bot, destination);
   if (!isAdmin) {
     console.warn(`❌ বট @${destination} এ অ্যাডমিন না`);
     try {
-      const user = await User.findOne({ destination_channel: destination });
+      // এখন User.findOne করা হবে যাদের সাবস্ক্রিপশনের কোনটি destination চ্যানেল হিসেবে সেট
+      const user = await User.findOne({ 'subscription.destination': destination });
       if (user) {
-        await bot.sendMessage(user.telegram_id, `⚠️ দয়া করে বটকে ${destination} চ্যানেলে অ্যাডমিন করুন, না হলে পোস্ট করতে পারবো না।`);
+        await bot.sendMessage(
+          user.telegram_id,
+          `⚠️ দয়া করে বটকে ${destination} চ্যানেলে অ্যাডমিন করুন, না হলে পোস্ট করতে পারবো না।`
+        );
       }
     } catch (err) {
       console.error('❌ ইউজারকে নোটিফিকেশন পাঠাতে সমস্যা:', err.message);
@@ -58,9 +63,12 @@ export async function forwardMediaGroup(bot, messages, destination) {
   if (!isAdmin) {
     console.warn(`❌ বট @${destination} এ অ্যাডমিন না`);
     try {
-      const user = await User.findOne({ destination_channel: destination });
+      const user = await User.findOne({ 'subscription.destination': destination });
       if (user) {
-        await bot.sendMessage(user.telegram_id, `⚠️ দয়া করে বটকে ${destination} চ্যানেলে অ্যাডমিন করুন, না হলে পোস্ট করতে পারবো না।`);
+        await bot.sendMessage(
+          user.telegram_id,
+          `⚠️ দয়া করে বটকে ${destination} চ্যানেলে অ্যাডমিন করুন, না হলে পোস্ট করতে পারবো না।`
+        );
       }
     } catch (err) {
       console.error('❌ ইউজারকে নোটিফিকেশন পাঠাতে সমস্যা:', err.message);
@@ -76,11 +84,10 @@ export async function forwardMediaGroup(bot, messages, destination) {
       : '';
 
     const mediaItems = [];
-
-    const addedMsgIds = new Set(); // ✅ ডুপ্লিকেট মেসেজ এড়াতে
+    const addedMsgIds = new Set();
 
     for (const msg of messages) {
-      if (addedMsgIds.has(msg.id)) continue; // skip duplicates
+      if (addedMsgIds.has(msg.id)) continue; // ডুপ্লিকেট এড়াতে
       addedMsgIds.add(msg.id);
 
       const file = await downloadMedia(msg);
@@ -89,7 +96,7 @@ export async function forwardMediaGroup(bot, messages, destination) {
         mediaItems.push({
           type: isVideo ? 'video' : 'photo',
           media: fs.createReadStream(file.path),
-          caption: undefined, // ✅ শুধুমাত্র প্রথম ফাইল caption পাবে নিচে
+          caption: undefined,
           parse_mode: 'HTML',
           ...(isVideo ? { supports_streaming: true } : {}),
           __path: file.path,
@@ -99,12 +106,10 @@ export async function forwardMediaGroup(bot, messages, destination) {
 
     if (mediaItems.length === 0) return;
 
-    // ✅ কেবলমাত্র প্রথম media item এ ক্যাপশন বসাও
     if (caption) mediaItems[0].caption = caption;
 
     await bot.sendMediaGroup(destination, mediaItems);
 
-    // ✅ সব ফাইল ডিলিট
     for (const item of mediaItems) {
       if (item.__path && fs.existsSync(item.__path)) {
         fs.unlinkSync(item.__path);
@@ -115,8 +120,6 @@ export async function forwardMediaGroup(bot, messages, destination) {
     console.error('❌ মিডিয়া গ্রুপ পাঠাতে সমস্যা:', err.message);
   }
 }
-
-
 
 // বট ওই চ্যানেলের অ্যাডমিন কিনা যাচাই
 async function isBotAdmin(bot, channelUsername) {
